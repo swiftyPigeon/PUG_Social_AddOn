@@ -61,10 +61,6 @@ mute. Deleting removes a post from the feed, not from anyone who already saved i
 | `/pug stone here <dungeon>`, `/pug stone export` | record meeting stone spots (Phase 0) |
 | `/pug measure ...` | Phase 0 tests: message rates, logged messages, signing speed, events |
 
-## Developing
-- `luajit tools/sim.lua` runs the offline test bench: several clients against a fake WoW API.
-- `tools/build-zip.sh` builds the release zip from the committed tree.
-
 ## Credits and licenses
 - PUG Social by SwiftyPigeon512, MIT (`LICENSE.txt`). Parts are copied from Guild Master Forever
   (MIT), itself derived from the Olympus add-on (MIT); `LICENSE.txt` keeps both notices.
