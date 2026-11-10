@@ -1,6 +1,6 @@
 local ADDON, ns = ...
 
--- Transport: one public custom channel per realm and faction ("PuggerA1" / "PuggerH1"), joined and
+-- Transport: one public custom channel per ruleset and faction ("PuggerAPvE1" / "PuggerHPvP1"), joined and
 -- hidden from the chat windows, with numbered backups for when one is locked; whispers for
 -- answers meant for one player. A send queue keeps to the budget (section 8 of the plan), long
 -- messages go in pieces, and every sender has a flood limit. Built on Guild Master Forever's
@@ -490,9 +490,12 @@ end
 -- everyone ends up in the same place. The add-on never uses an owner's powers on anyone.
 ---------------------------------------------------------------------------
 
+-- One set per ruleset and faction (0.1.4): PuggerAPvE1, PuggerHRPPvP1... Forever's channels reach
+-- every realm, so the ruleset in the name is what keeps PvE and PvP players (who can't group)
+-- apart. Where the realm's name gives no ruleset: PuggerA1, as before.
 local function ChannelFor(n)
 	local base = ns.CHANNELS[ns.faction or ""]
-	return base and (base .. n) or nil
+	return base and (base .. (ns.ruleset or "") .. n) or nil
 end
 Comm.ChannelFor = ChannelFor
 

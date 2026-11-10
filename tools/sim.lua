@@ -958,6 +958,53 @@ P.x = 0.4
 Check(Call(P, P.ns.Calls.AtStone, P.ns.Stones.Get("wc")), "back at the learned spot: at the stone without hovering")
 Logout(P) Logout(Q)
 
+print("== rulesets: one feed and channel per ruleset and faction, across realms")
+do
+	local R = A.ns.Ruleset
+	Check(R("CAMWOWUS1Realm7PvE") == "PvE" and R("CAMWOWUS1Realm2PvP") == "PvP" and R("CAMWOWUS2Realm3RPPvP") == "RPPvP"
+		and R("CAMWOWUS1Realm4RP") == "RP" and R("CAMWOW US1 Realm 5 Hardcore") == "Hardcore", "the ruleset read from the realm's name")
+	Check(R("Forever") == nil and R("Sharp") == nil and R("Whisperp") == nil, "no ruleset where the name gives none (no digit before it)")
+	local P1 = NewClient({ name = "Rua", realm = "CAMWOWUS1Realm1PvE" })
+	local P2 = NewClient({ name = "Ruo", realm = "CAMWOWUS2Realm7PvE" })
+	local P3 = NewClient({ name = "Rux", realm = "CAMWOWUS1Realm2PvP" })
+	P1.env.PuggerDB = { feeds = {
+		["CAMWOWUS1Realm1PvE-Alliance"] = { follows = { ["Bob-X"] = true }, mutes = { ["Mo-X"] = true }, channel = 3, counter = 9 },
+		["CAMWOWUS2Realm7PvE-Alliance"] = { follows = { ["Cy-X"] = true }, counter = 4 },
+		["CAMWOWUS1Realm2PvP-Alliance"] = { follows = { ["Pv-X"] = true } },
+		["CAMWOWUS1Realm1PvE-Horde"] = { follows = { ["Ho-X"] = true } },
+	} }
+	Login(P1) Login(P2) Login(P3)
+	Advance(60)
+	local feeds = P1.env.PuggerDB.feeds
+	local f = feeds["PvE-Alliance"]
+	Check(f and f.follows["Bob-X"] and f.follows["Cy-X"] and f.mutes["Mo-X"] and f.counter == 9 and f.channel == 1,
+		"both PvE realms' feeds became the PvE feed: follows and mutes kept, channel 1 again")
+	Check(feeds["CAMWOWUS1Realm2PvP-Alliance"] and feeds["CAMWOWUS1Realm1PvE-Horde"] and not feeds["CAMWOWUS2Realm7PvE-Alliance"],
+		"the PvP and Horde feeds left alone")
+	Check(P1.chans["PuggerAPvE1"] and P2.chans["PuggerAPvE1"] and P3.chans["PuggerAPvP1"] and not P3.chans["PuggerAPvE1"],
+		"PvE players of two realms share PuggerAPvE1; the PvP player is on PuggerAPvP1")
+	Logout(P1) Logout(P2) Logout(P3)
+end
+
+print("== a meeting stone in a Forever zone the table has no stone for")
+local Fa = NewClient({ name = "Fenn", map = 1450, x = 0.50, y = 0.50, level = 26 })
+local Fb = NewClient({ name = "Fara", map = 1450, x = 0.52, y = 0.50, level = 26 })
+Login(Fa) Login(Fb)
+Advance(60)
+Call(Fa, function() Fa.env.PuggerDB.consented = 1 end)
+local fl = Call(Fa, Fa.ns.Stones.OfZone, 1450)
+Check(#fl > 5 and fl[1].lo <= 26 and fl[1].hi >= 26, "no stone listed for the zone: every dungeon offered, a level 26 one first (" .. fl[1].name .. ")")
+local wl = Call(Fa, Fa.ns.Stones.OfZone, 1437)
+Check(#wl == 1 and wl[1].key == "exc", "the Wetlands: Forever's Excavation Site")
+Fa.env.GameTooltipTextLeft1 = { GetText = function() return "Meeting Stone" end }
+Call(Fa, Fa.ns.Calls.OnTooltip, { GetUnit = function() return nil end, GetName = function() return "GameTooltip" end })
+Call(Fa, Fa.ns.Calls.Dungeon, "exc", 2)
+Advance(5)
+local seenF
+for _, c in ipairs(Call(Fb, Fb.ns.Calls.List, "groups")) do if c.kind == "D" then seenF = c end end
+Check(seenF ~= nil, "a call for a new dungeon outside its guessed zone still reaches others")
+Logout(Fa) Logout(Fb)
+
 print("== stones learned from other players (the gossip)")
 local function Hover(c)
 	c.env.GameTooltipTextLeft1 = { GetText = function() return "Meeting Stone" end }

@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.1.4 (2026-11-09)
+- **One feed per ruleset and faction, not per realm.** On Forever a ruleset (PvE, PvP, RP,
+  RP-PvP) is many realms, and its players group and guild together whatever realm they're on.
+  The feed's channel is now `PuggerAPvE1`, `PuggerHPvP1`...: PvE and PvP players, who can't
+  group, no longer share one (their dungeon calls reached each other). Your follows, mutes,
+  blocks and likes move over, merged when you had them on two realms. **Everyone needs 0.1.4:**
+  0.1.3 and 0.1.4 are on different channels and don't see each other.
+- **Look for group at a stone no longer shows an empty "Which dungeon is this stone for?"
+  menu.** The stone list only had the original dungeons, so a stone in a zone without one
+  offered nothing. Forever's nine new dungeons are in the list now (their zones are a guess
+  until a stone is recorded, so a call is never dropped for its zone), and a zone with no
+  listed stone offers every dungeon, the ones for your level first.
+
 ## 0.1.3 (2026-11-06)
 - **Players can see each other on Forever.** Forever drops add-on messages on custom channels
   (every PUG Social so far sent into the void and saw "1 user"), and lets an add-on write on a

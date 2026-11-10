@@ -5,7 +5,7 @@ local ADDON, ns = ...
 -- see LICENSE.txt).
 
 ns.NAME = "PUG Social" -- the name players see (the add-on, its folder, saved data and channels stay Pugger)
-ns.VERSION = "0.1.3"
+ns.VERSION = "0.1.4"
 ns.PREFIX = "PUGGER"                  -- add-on message prefix (16 characters at most)
 ns.CHANNELS = { Alliance = "PuggerA", Horde = "PuggerH" } -- + 1, 2, 3...: the numbered channels
 ns.CHANNEL_MAX = 6                   -- the last backup channel tried
@@ -285,9 +285,10 @@ end
 -- Saved data. PuggerDB = {
 --   settings = {...} (DEFAULTS), log = {}, errors = {},
 --   chars = { [Name-Realm] = { window = {...}, seed = <secret key, base64>, pk = ... } },
---   feeds = { [Realm-Faction] = the feed this character's realm and faction share (Store.lua) },
+--   feeds = { [Ruleset-Faction] = the feed this character's ruleset and faction share (Store.lua);
+--             Realm-Faction where the realm's name gives no ruleset },
 -- }
--- Each feed belongs to one realm and faction: Horde and Alliance never share one.
+-- Each feed belongs to one ruleset and faction: Horde and Alliance never share one, nor PvE and PvP.
 ---------------------------------------------------------------------------
 
 local function Fill(t, defaults)
@@ -309,14 +310,65 @@ function ns.Faction()
 	return (f == "Horde" or f == "Alliance") and f or nil
 end
 
--- The feed of this realm and faction: made the first time.
-function ns.FeedKey()
-	return ns.realm .. "-" .. (ns.faction or "?")
+-- The ruleset a realm belongs to, from the end of its name (Forever: "CAMWOWUS1Realm7PvE"); nil
+-- for a realm whose name says none (other clients, test realms). On Forever a ruleset is many
+-- realms: guilds and groups span them, and players of one ruleset and faction play together
+-- whatever realm they're on, never with another ruleset's.
+local RULESETS = { -- longest first: "RPPvP" before "PvP" and "RP"
+	{ "rppvp", "RPPvP" }, { "hardcore", "Hardcore" }, { "pvp", "PvP" }, { "pve", "PvE" }, { "rp", "RP" },
+}
+function ns.Ruleset(realm)
+	if type(realm) ~= "string" then return nil end
+	local low = realm:gsub("[%s%-]", ""):lower()
+	-- (A ruleset at the end, after a digit: "Realm7PvE", never a realm merely ending in "rp".)
+	for _, r in ipairs(RULESETS) do
+		if #low > #r[1] and low:sub(-#r[1]) == r[1] and low:sub(-#r[1] - 1, -#r[1] - 1):match("%d") then return r[2] end
+	end
+	return nil
 end
+
+-- The feed of this ruleset and faction (of this realm, where no ruleset is known): made the
+-- first time.
+function ns.FeedKey()
+	return (ns.ruleset or ns.realm) .. "-" .. (ns.faction or "?")
+end
+
+-- 0.1.4: feeds were per realm. The ones of this ruleset and faction become its feed: follows,
+-- mutes, blocks, likes and profiles kept (merged when two realms had one), on channel 1 again
+-- (the channels are new).
+local function Merge(into, from)
+	for k, v in pairs(from) do
+		if type(v) == "table" and type(into[k]) == "table" then
+			for kk, vv in pairs(v) do if into[k][kk] == nil then into[k][kk] = vv end end
+		elseif into[k] == nil then
+			into[k] = v
+		end
+	end
+	if tonumber(from.counter) and tonumber(into.counter) then into.counter = math.max(into.counter, from.counter) end
+end
+local function MoveRealmFeeds(db, key)
+	if not ns.ruleset or not ns.faction then return end
+	local moved = false
+	for old, feed in pairs(db.feeds) do
+		local realm, faction = old:match("^(.+)%-(%a+)$")
+		if old ~= key and type(feed) == "table" and faction == ns.faction and realm ~= ns.ruleset and ns.Ruleset(realm) == ns.ruleset then
+			db.feeds[key] = db.feeds[key] or {}
+			Merge(db.feeds[key], feed)
+			db.feeds[old] = nil
+			moved = true
+		end
+	end
+	if moved then
+		db.feeds[key].channel = 1
+		ns.Log("realm feeds moved to %s", key)
+	end
+end
+ns.MoveRealmFeeds = MoveRealmFeeds
 
 local function OpenFeed()
 	local db = ns.db
 	local key = ns.FeedKey()
+	MoveRealmFeeds(db, key)
 	db.feeds[key] = db.feeds[key] or {}
 	ns.rdb = db.feeds[key]
 	Fill(ns.rdb, {
@@ -346,6 +398,7 @@ end)
 
 ns.RegisterEvent("PLAYER_LOGIN", function()
 	ns.realm = ns.CurrentRealm()
+	ns.ruleset = ns.Ruleset(ns.realm)
 	ns.faction = ns.Faction()
 	ns.me = ns.PlayerName()
 	ns.db.chars[ns.me] = ns.db.chars[ns.me] or {}

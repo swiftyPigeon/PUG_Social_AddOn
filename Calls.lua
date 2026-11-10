@@ -486,7 +486,7 @@ ns.Comm.Handle("M1", function(dist, sender, text)
 	end
 	-- A dungeon call far from its stone is dropped (when the stone's spot is known).
 	if c.kind == "D" then
-		if ns.Stones.Strict(c.map) and not ns.Stones.InZone(c.stone, c.map) then return end
+		if ns.Stones.WrongZone(c.stone, c.map) then return end
 		local sm, sx, sy = ns.Stones.TableSpot(c.stone)
 		if sm then
 			local d = Calls.Distance(sm, sx, sy, c.map, c.x, c.y)
@@ -697,7 +697,7 @@ function Calls.AtStone(s)
 		local d = Calls.Distance(sm, sx, sy, map, x, y)
 		if d and d <= ns.Stones.NEAR * 2 then return true end
 	end
-	if ns.Stones.Strict(map) and not ns.Stones.InZone(s, map) then return false end
+	if ns.Stones.WrongZone(s, map) then return false end
 	if Calls.usedStone and GetTime() - (Calls.usedStoneAt or 0) < Calls.STONE_SEEN_FOR then return true end
 	return Calls.NearSeenStone()
 end

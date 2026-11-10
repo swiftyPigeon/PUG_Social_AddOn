@@ -20,7 +20,7 @@ L.TAB_MENTIONS = "Mentions"
 L.TAB_GROUPS = "Groups"
 L.TAB_NEARBY = "Nearby"
 L.TAB_ME = "Me"
-L.HINT_REALM = "Everyone on your realm and faction"
+L.HINT_REALM = "Everyone on your ruleset and faction"
 L.HINT_FOLLOWING = "People you follow (kept private)"
 L.HINT_MENTIONS = "Posts that mention you"
 L.HINT_GROUPS = "Dungeon groups from meeting stones"
@@ -295,9 +295,9 @@ L.CHANNEL_MOVED = "The feed's channel was locked; it moved to %s."
 
 -- Privacy
 L.CONSENT_TITLE = "Posts are public"
-L.CONSENT_BODY = "Posts are public to everyone on your realm and faction with the add-on, and each shows the zone and coordinates where you wrote it. Deleting removes a post from the feed, not from anyone who already saved it."
+L.CONSENT_BODY = "Posts are public to everyone on your ruleset and faction with the add-on, and each shows the zone and coordinates where you wrote it. Deleting removes a post from the feed, not from anyone who already saved it."
 L.PRIVACY_TITLE = "PUG Social: privacy and limits"
-L.PRIVACY_BODY = "Posts, profiles and calls are public to everyone on your realm and faction with the add-on.\n\nDeleting removes a post from the feed, not from anyone who already saved it.\n\nEvery post shows the zone and coordinates where you wrote it, so players can find the person behind a post to report or mute. Calls show the spot you made them at. Your position is never shared at any other time.\n\nWho you follow stays on your computer unless you choose to show it.\n\nThere's no website and no company behind the feed to appeal to. Mute, block and the word filter are yours; for abuse, use the game's own report."
+L.PRIVACY_BODY = "Posts, profiles and calls are public to everyone on your ruleset and faction with the add-on.\n\nDeleting removes a post from the feed, not from anyone who already saved it.\n\nEvery post shows the zone and coordinates where you wrote it, so players can find the person behind a post to report or mute. Calls show the spot you made them at. Your position is never shared at any other time.\n\nWho you follow stays on your computer unless you choose to show it.\n\nThere's no website and no company behind the feed to appeal to. Mute, block and the word filter are yours; for abuse, use the game's own report."
 
 -- Stones
 L.STONE_KEYS = "Name the dungeon: %s"

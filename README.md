@@ -3,10 +3,10 @@
 (Its folder and files keep the name Pugger: `Interface/AddOns/Pugger`.)
 
 A public social feed for **WoW: Forever**, inside the game: post, follow, like, reply and repost,
-read a timeline of your realm and faction, and call rares, camps and groups on everyone's map.
+read a timeline of your ruleset and faction, and call rares, camps and groups on everyone's map.
 Built on legacy chat: nothing outside the game. Main command: **`/pug`**.
 
-Version **0.1.3** (2026-11-06).
+Version **0.1.4** (2026-11-09).
 
 ## What it does
 - **Posts** of up to 80 characters, with item, spell and quest links (shift-click), `#tags` and
@@ -36,12 +36,12 @@ Version **0.1.3** (2026-11-06).
 - **Safety:** mute, block, word filter, flood limits (3 posts from one spot in 15 minutes: move
   on 100 yards to post again; 20 an hour), call limits checked by everyone, signed posts (a relayed post shows only once
   its author's signature checks), backup channels when one is locked.
-- **How it talks:** a hidden chat channel for your realm and faction (`PuggerA1` / `PuggerH1`).
+- **How it talks:** a hidden chat channel for your ruleset and faction (`PuggerAPvE1`, `PuggerHPvP1`...): on Forever a ruleset spans many realms, and its players share one feed.
   What you do (a post, a like, a call) goes there as a line of chat text when you click; the
   rest (catching up, profiles) goes by whisper to a few players in that channel. "N users" is
   that channel's member list.
 
-Posts are public to everyone on your realm and faction with the add-on, and every post shows the
+Posts are public to everyone on your ruleset and faction with the add-on, and every post shows the
 zone and coordinates where it was written, so anyone can find the player behind it to report or
 mute. Deleting removes a post from the feed, not from anyone who already saved it. See
 `/pug privacy`.
@@ -74,4 +74,4 @@ mute. Deleting removes a post from the feed, not from anyone who already saved i
   and Cinzel by the Cinzel Project Authors (`media/fonts/OFL-Cinzel.txt`; the Bold weight cut from
   its variable font).
 - The name: a "PUG" is a pick-up group, and a pugger is a player who joins them; this feed is where
-  your realm and faction find one. PUG Social is free, never monetized, and has nothing to do with X Corp.
+  your ruleset and faction find one. PUG Social is free, never monetized, and has nothing to do with X Corp.

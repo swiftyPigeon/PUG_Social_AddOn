@@ -41,6 +41,18 @@ Stones.LIST = {
 	{ key = "dire",  name = "Dire Maul",            zones = { 1444 },       lo = 55, hi = 60 },
 	{ key = "scholo", name = "Scholomance",         zones = { 1422 },       lo = 58, hi = 60 },
 	{ key = "strat", name = "Stratholme",           zones = { 1423 },       lo = 58, hi = 60 },
+	-- WoW: Forever's new dungeons. `guess`: the zones are where Blizzard says the dungeon is, not
+	-- where its stone was seen; until someone records it (/pug stone here), a call is never dropped
+	-- for its zone and the zone alone never names the stone (the gossip's KeysOf).
+	{ key = "thanes",  name = "Hall of Thanes",       zones = { 1455, 1426 }, lo = 13, hi = 18, guess = true },
+	{ key = "rol",     name = "Ruins of Lordaeron",   zones = { 1458, 1420 }, lo = 15, hi = 20, guess = true },
+	{ key = "exc",     name = "Excavation Site",      zones = { 1437 },       lo = 24, hi = 29, guess = true },
+	{ key = "dal",     name = "City of Dalaran",      zones = { 1416 },       lo = 28, hi = 33, guess = true },
+	{ key = "drowned", name = "The Drowned City",     zones = { 1434 },       lo = 35, hi = 40, guess = true },
+	{ key = "krol",    name = "Krol'dok Stronghold",  zones = {},             lo = 40, hi = 45, guess = true }, -- Riverglades: its map number unknown
+	{ key = "alcaz",   name = "Alcaz Prison",         zones = { 1445 },       lo = 48, hi = 53, guess = true },
+	{ key = "blackmaw", name = "Blackmaw Hold",       zones = { 1447 },       lo = 55, hi = 60, guess = true },
+	{ key = "shaper",  name = "Shaper's Terrace",     zones = { 1449 },       lo = 58, hi = 60, guess = true },
 }
 
 local byKey = {}
@@ -69,6 +81,12 @@ function Stones.InZone(s, mapID)
 	return false
 end
 
+-- Is this map surely not the stone's zone? Only on Forever's numbers, and never for a stone whose
+-- zones are a guess (Forever's new dungeons).
+function Stones.WrongZone(s, mapID)
+	return Stones.Strict(mapID) and not s.guess and not Stones.InZone(s, mapID)
+end
+
 -- Does this client number its zones as Forever does (the Classic uiMapIDs above)? Only then
 -- can a stone's zone be checked; a client that numbers them otherwise (MoP Classic, retail-style
 -- IDs) can't, and the zone check is left out.
@@ -78,11 +96,19 @@ end
 
 -- The stones a player at mapID may mean, for this player's faction: that zone's on Forever;
 -- every dungeon elsewhere, those that fit the player's level first.
+-- A zone with a stone but none in the table (a new Forever zone, or numbers we got wrong) gets every
+-- dungeon too: an empty list would leave the player at a stone with nothing to pick.
 function Stones.OfZone(mapID)
 	local out = {}
 	local strict = Stones.Strict(mapID)
 	for _, s in ipairs(Stones.LIST) do
 		if (not strict or Stones.InZone(s, mapID)) and (not s.faction or s.faction == ns.faction) then out[#out + 1] = s end
+	end
+	if strict and #out == 0 then
+		strict = false
+		for _, s in ipairs(Stones.LIST) do
+			if not s.faction or s.faction == ns.faction then out[#out + 1] = s end
+		end
 	end
 	if not strict then
 		local lv = UnitLevel("player") or 0
@@ -105,7 +131,7 @@ function Stones.Record(key)
 	end
 	local map, x, y = ns.Calls.MyPosition()
 	if not map then return ns.Print(ns.L.NO_POSITION) end
-	if not Stones.InZone(s, map) then ns.Print(ns.L.STONE_OTHER_ZONE:format(s.name)) end
+	if Stones.WrongZone(s, map) then ns.Print(ns.L.STONE_OTHER_ZONE:format(s.name)) end
 	ns.db.stones[s.key] = { map = map, x = x, y = y, t = ns.Now() }
 	ns.Print(ns.L.STONE_RECORDED:format(s.name, map, x * 100, y * 100))
 	Stones.Sighted(map, x, y, s.key, true)
@@ -282,7 +308,7 @@ local function KeysOf(c)
 	if not Stones.Strict(c.map) then return {} end
 	local groups, list = {}, {}
 	for _, s in ipairs(Stones.LIST) do
-		if Stones.InZone(s, c.map) then
+		if Stones.InZone(s, c.map) and not s.guess then
 			local g = s.shared or s.key
 			if not groups[g] then groups[g] = {} list[#list + 1] = g end
 			groups[g][#groups[g] + 1] = s.key
