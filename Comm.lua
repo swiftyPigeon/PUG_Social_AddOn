@@ -509,7 +509,7 @@ end
 -- Our hidden channel after the game's own. Joined before them (a slow login, or Forever, where
 -- General comes in late), it took /1 and pushed General to /2, Trade to /3: moved past each of
 -- the game's channels numbered after it, they get their usual numbers back. The player's own
--- channels and other add-ons' keep theirs. (From Sylvanistas' Comm.KeepLast.)
+-- channels and other add-ons' keep theirs.
 function Comm.KeepLast()
 	if not joinedName or not GetChannelList then return end
 	local swap = C_ChatInfo and C_ChatInfo.SwapChatChannelsByChannelIndex
@@ -555,6 +555,7 @@ function Comm.JoinChannel()
 		-- Already in it (a /reload): say we're here all the same.
 		channelIndex = id
 		HideChannelFromChat(name)
+		Comm.joinedAt = ns.Now()
 		Comm.KeepLast()
 		if was == 0 then ns.Fire("CHANNEL_READY") end
 		return
@@ -567,6 +568,7 @@ function Comm.JoinChannel()
 		channelIndex = GetChannelName(name) or 0
 		ns.Log("%s -> #%d", name, channelIndex)
 		HideChannelFromChat(name)
+		Comm.joinedAt = ns.Now()
 		Comm.KeepLast()
 		if channelIndex > 0 then ns.Fire("CHANNEL_READY") end
 	end)
@@ -581,6 +583,7 @@ function Comm.JoinSoon(t, seenAt)
 	if t >= Comm.JOIN_BY or (seenAt and t - seenAt >= 2) then return Comm.JoinChannel() end
 	ns.After(1, "join channel", function() Comm.JoinSoon(t + 1, seenAt) end)
 end
+Comm.KEEP_LAST_FOR = 180 -- seconds after joining in which the channel list changing moves ours last
 
 -- To channel n (a backup): never back down to a lower one this way.
 function Comm.MoveTo(n, why)
@@ -667,6 +670,19 @@ ns.On("LOGIN", function()
 		OnAddonMessage(prefix, text, dist, sender, target, z, l, c, true)
 	end)
 	ns.RegisterEvent("CHAT_MSG_CHANNEL_NOTICE", Comm.OnChannelNotice)
+	-- 0.1.5: Forever's General joins late, after ours (seen 2026-11-11: our channel /1, General /2,
+	-- so a player's /1 went to the feed's hidden channel). One look 3 s after joining missed it: ours
+	-- moves behind the game's channels whenever the list changes in the minutes after we joined.
+	-- Later changes are the player's own.
+	local lastPending = false
+	ns.RegisterEvent("CHANNEL_UI_UPDATE", function()
+		if lastPending or ns.Now() - (Comm.joinedAt or -1e9) > Comm.KEEP_LAST_FOR then return end
+		lastPending = true
+		ns.After(2, "channel last", function()
+			lastPending = false
+			Comm.KeepLast()
+		end)
+	end)
 	ns.RegisterEvent("CHAT_MSG_CHANNEL_NOTICE_USER", Comm.OnChannelNotice)
 	ns.RegisterEvent("CHANNEL_PASSWORD_REQUEST", Comm.OnPasswordRequest)
 	-- After the game's own channels (General, Trade), so ours never takes their numbers.
