@@ -6,7 +6,7 @@ A public social feed for **WoW: Forever**, inside the game: post, follow, like, 
 read a timeline of your ruleset and faction, and call rares, camps and groups on everyone's map.
 Built on legacy chat: nothing outside the game. Main command: **`/pug`**.
 
-Version **0.1.4** (2026-11-09).
+Version **0.1.5** (2026-11-11).
 
 ## What it does
 - **Posts** of up to 80 characters, with item, spell and quest links (shift-click), `#tags` and
