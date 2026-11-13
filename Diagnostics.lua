@@ -94,6 +94,13 @@ function Diagnostics.Status()
 				for _, k in ipairs(r) do if Comm.CanWhisper(k) then reach = reach + 1 end end
 				return ("%d (%d named, %d a whisper reaches)"):format(r.count, #r, reach)
 			end)()),
+		-- (0.1.6: background messages on the channel once an echo proved it carries them, else
+		-- whispered; answers to players a whisper can't reach go on it, addressed; and the proof
+		-- that it reaches further: profiles and digests heard from such players)
+		("Channel add-on messages: %s · sent %d, back %d · on the channel %d · addressed %d sent, %d got · from players a whisper can't reach: %d"):format(
+			Comm.ChannelMode() and "on" or ("off, by whisper" .. ((Comm.stats.fallbacks or 0) > 0 and (" (fell back " .. Comm.stats.fallbacks .. "x)") or "")),
+			Comm.stats.chanSent or 0, Comm.stats.chanBack or 0, Comm.stats.onChannel or 0, Comm.stats.addrSent or 0,
+			Comm.stats.addrGot or 0, Comm.stats.farHeard or 0),
 		("Sync: digests %d sent, %d heard · answers %d · asked %d · sent %d posts"):format(Sync.stats.digests,
 			Sync.stats.heard, Sync.stats.offers, Sync.stats.asked, Sync.stats.sent),
 		("Stones known: %d in the table, %d recorded here, %d agreed by players"):format(ns.Stones.Counts()),

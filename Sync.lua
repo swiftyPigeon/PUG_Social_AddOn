@@ -186,3 +186,9 @@ ns.On("CHANNEL_READY", function()
 	-- At login always: this client is the one behind.
 	ns.After(15 + math.random() * 25, "sync first digest", function() Sync.SendDigest(true) end)
 end)
+
+-- 0.1.6: the channel turned out to carry add-on messages: a digest now reaches every realm, so
+-- players a whisper never reached can offer what we missed.
+ns.On("CHANNEL_CARRIES", function()
+	ns.After(3 + math.random() * 5, "digest", function() Sync.SendDigest(true) end)
+end)

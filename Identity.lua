@@ -279,6 +279,10 @@ end)
 ns.On("CHANNEL_READY", function()
 	ns.After(2 + math.random() * 6, "profile", function() Identity.SendProfile(true) end)
 end)
+-- 0.1.6: the channel turned out to carry add-on messages: the profile again, now to every realm.
+ns.On("CHANNEL_CARRIES", function()
+	ns.After(1 + math.random() * 4, "profile", function() Identity.SendProfile(true) end)
+end)
 ns.On("LOGIN", function()
 	ns.Every(60, "profile ticker", function()
 		if ns.Now() - lastProfile >= Identity.PROFILE_EVERY * ns.Comm.Scale() then Identity.SendProfile(true) end

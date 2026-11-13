@@ -37,6 +37,14 @@ Comm.SPREAD = 3          -- players a background message is whispered to
 Comm.REACH = 25          -- ...and news everyone should hear (opt.reach): stones, a move
 Comm.ROSTER_EVERY = 20   -- seconds between two readings of the channel's member list
 Comm.WIDE = ns.PREFIX .. "W" -- whispers meant for the channel
+-- 0.1.6: background messages go on the channel once it is proven to carry add-on messages (our own
+-- comes back to us: the echo). Until then, and whenever echoes stop, they are whispered as before.
+-- Forever dropped every add-on message on a custom channel on 2026-11-06 and carried them again on
+-- 2026-11-11: either way, nothing is lost while it is being found out.
+Comm.ADDR = ns.PREFIX .. "T" -- on the channel, addressed to one player a whisper can't reach
+Comm.ECHO_WAIT = 10          -- seconds an echo may take
+Comm.ECHO_MISSES = 3         -- echoes missed in a row: back to whispers
+Comm.PROBE_EVERY = 600       -- while on whispers, the channel is tried this often
 
 local queue = {}
 local lastChannel, lastWhisper = 0, 0
@@ -45,12 +53,16 @@ local joinedName
 local msgId = 0
 local asm = { CHANNEL = Codec.NewAssembler(), WHISPER = Codec.NewAssembler() }
 local handlers = {}
-local stats = { sent = 0, fails = 0, recv = 0, flood = 0, bad = 0, echo = 0, dropped = 0, events = 0, ours = 0, secret = 0, elsewhere = 0, said = 0, heardText = 0, spread = 0, blocked = 0, unreachable = 0, byType = {} }
+local stats = { sent = 0, fails = 0, recv = 0, flood = 0, bad = 0, echo = 0, dropped = 0, events = 0, ours = 0, secret = 0, elsewhere = 0, said = 0, heardText = 0, spread = 0, blocked = 0, unreachable = 0, byType = {},
+	chanSent = 0, chanBack = 0, onChannel = 0, addrSent = 0, addrGot = 0, notForUs = 0, farHeard = 0, fallbacks = 0, probes = 0 }
 Comm.stats = stats
 local function Squash(realm) return (realm:gsub("[%s%-]", ""):lower()) end
 local reached, refused = {}, {} -- [squashed realm] = true: a whisper reaches it, or can't (Comm.CanWhisper)
 local heard = {} -- [sender] = when we last heard them (so a whisper only goes to someone online)
 local countingSince = GetTime()
+local chanMode = false            -- true: background on the channel (proven by an echo)
+local awaiting = {}               -- when our channel add-on messages left, their echo not back yet
+local misses, lastProbe = 0, -1e9 -- echoes missed in a row; our last test of the channel
 
 -- Every client sends its profile at login and every ten minutes (Identity.PROFILE_EVERY), slower
 -- on a big feed (Comm.Scale): the players heard within that, and a minute more, are the ones
@@ -131,11 +143,75 @@ local function Pieces(msg)
 	return Codec.Chunk(msg, Codec.Base36(msgId))
 end
 
+-- 0.1.6: a test of the channel ("E0~": every 0.1.6 client ignores it; 0.1.5 counts it as unknown).
+function Comm.Probe()
+	if ns.TestNet() or chanMode then return end
+	lastProbe = GetTime()
+	stats.probes = stats.probes + 1
+	Enqueue({ msg = "E0~", key = "E0" })
+end
+
+-- Whether background messages go on the channel now: echoes missed in a row send them back to
+-- whispers; on whispers, the channel is tried again every PROBE_EVERY.
+function Comm.ChannelWorks()
+	if ns.TestNet() then return false end
+	local now = GetTime()
+	while awaiting[1] and now - awaiting[1] > Comm.ECHO_WAIT do
+		table.remove(awaiting, 1)
+		misses = misses + 1
+	end
+	if chanMode and misses >= Comm.ECHO_MISSES then
+		chanMode, lastProbe = false, now
+		stats.fallbacks = stats.fallbacks + 1
+		ns.Log("channel: %d echoes missed: background back to whispers", misses)
+	end
+	if not chanMode and now - lastProbe >= Comm.PROBE_EVERY and Comm.Ready() then Comm.Probe() end
+	return chanMode
+end
+function Comm.ChannelMode() return chanMode end
+
+-- Our own channel add-on message came back: the channel carries them.
+local function Echoed()
+	table.remove(awaiting, 1)
+	stats.chanBack = stats.chanBack + 1
+	misses = 0
+	if not chanMode then
+		chanMode = true
+		ns.Log("channel: carries add-on messages: background goes on it")
+		-- What went out by whisper at login (profile, digest) goes again, now to every realm.
+		ns.Fire("CHANNEL_CARRIES")
+	end
+end
+
+-- 0.1.6: to one player a whisper can't reach, on the channel with their name in front (Comm.ADDR):
+-- every member gets it, only they read it (0.1.5 doesn't listen to ADDR). Pieces are cut smaller so
+-- the name fits in each; they go together again as any other message's (Codec.Feed).
+function Comm.Address(msg, opt)
+	local head = opt.to .. "~"
+	local room = 255 - #head
+	local pieces
+	if #msg <= room then
+		pieces = { msg }
+	else
+		msgId = (msgId + 1) % 1296
+		local id, size = Codec.Base36(msgId), room - 16
+		local n = math.ceil(#msg / size)
+		pieces = {}
+		for i = 1, n do pieces[i] = ("C%s:%d:%d:"):format(id, i, n) .. msg:sub((i - 1) * size + 1, i * size) end
+	end
+	for i, piece in ipairs(pieces) do
+		Enqueue({ msg = head .. piece, addr = opt.to, logged = opt.logged, urgent = opt.urgent,
+			key = #pieces == 1 and opt.key and (opt.key .. opt.to) or nil, done = i == #pieces and opt.done or nil })
+	end
+	stats.addrSent = stats.addrSent + 1
+end
+
 function Comm.Send(msg, opt)
 	opt = opt or {}
 	if type(msg) ~= "string" or msg == "" then return end
 	if opt.to and (type(opt.to) ~= "string" or opt.to == "" or ns.IsMe(opt.to)) then return end
 	if opt.to and not Comm.CanWhisper(opt.to) then
+		if Comm.ChannelWorks() then return Comm.Address(msg, opt) end
 		stats.unreachable = stats.unreachable + 1
 		return
 	end
@@ -173,6 +249,16 @@ end
 Comm.HOLD_FOR, Comm.HOLD_MAX = 120, 20
 local held = {}
 function Comm.Spread(msg, opt)
+	-- 0.1.6: once the channel is proven, one message on it reaches every member on every realm.
+	if Comm.ChannelWorks() then
+		local pieces = Pieces(msg)
+		for i, piece in ipairs(pieces) do
+			Enqueue({ msg = piece, logged = opt.logged, key = #pieces == 1 and opt.key or nil, urgent = opt.urgent,
+				done = i == #pieces and opt.done or nil })
+		end
+		stats.onChannel = stats.onChannel + 1
+		return
+	end
 	local peers = Comm.Peers(opt.reach or Comm.SPREAD)
 	if #peers == 0 and not Comm.Roster() then
 		if #held < Comm.HOLD_MAX then held[#held + 1] = { msg = msg, opt = opt, t = GetTime() } end
@@ -201,9 +287,14 @@ local function SendNow(item)
 		target = dist == "CHANNEL" and channelIndex or nil
 	end
 	local send = item.logged and C_ChatInfo.SendAddonMessageLogged or C_ChatInfo.SendAddonMessage
-	local ok, res = pcall(send, item.wide and Comm.WIDE or ns.PREFIX, item.msg, dist, target)
+	local prefix = item.addr and Comm.ADDR or (item.wide and Comm.WIDE or ns.PREFIX)
+	local ok, res = pcall(send, prefix, item.msg, dist, target)
 	if ok and IsSuccess(res) then
 		stats.sent = stats.sent + 1
+		if dist == "CHANNEL" then
+			stats.chanSent = stats.chanSent + 1
+			awaiting[#awaiting + 1] = GetTime()
+		end
 		return true
 	end
 	stats.fails = stats.fails + 1
@@ -287,7 +378,7 @@ local function Dispatch(dist, sender, text, logged)
 	ns.SafeCall("handler " .. kind, handler, dist, sender, text, logged)
 end
 
-local function OnAddonMessage(prefix, text, dist, sender, target, zoneChannelID, localID, channelName, logged)
+local function OnAddonMessage(prefix, text, dist, sender, target, zoneChannelID, localID, channelName, logged, asText)
 	stats.events = stats.events + 1
 	if ns.Secret(prefix, text, sender, dist, localID) then stats.secret = stats.secret + 1 return end
 	if dist == "WHISPER" and type(sender) == "string" then
@@ -295,9 +386,19 @@ local function OnAddonMessage(prefix, text, dist, sender, target, zoneChannelID,
 		local r = sender:match("%-([^%-]+)$")
 		if r then reached[Squash(r)] = true end
 	end
+	-- (an add-on message really on the channel: not a whispered-wide one, not chat text there, whose
+	-- own echo proves nothing about add-on messages)
+	local onChannel, addressed = dist == "CHANNEL" and not asText, false
 	if prefix == Comm.WIDE and dist == "WHISPER" then
 		-- Meant for the channel, whispered to us (Comm.Spread): handled as heard there.
 		prefix, dist, localID = ns.PREFIX, "CHANNEL", nil
+	end
+	-- 0.1.6: addressed to one player on the channel (Comm.Address): theirs only, read as a whisper.
+	if prefix == Comm.ADDR and dist == "CHANNEL" and type(text) == "string" and type(sender) == "string" then
+		local to, rest = text:match("^([^~]+)~(.+)$")
+		if not to then stats.bad = stats.bad + 1 return end
+		if not ns.IsMe(to) and ns.Key(sender) ~= ns.me then stats.notForUs = stats.notForUs + 1 return end
+		prefix, text, addressed = ns.PREFIX, rest, true
 	end
 	if prefix == ns.PREFIX then stats.ours = stats.ours + 1 end
 	if prefix ~= ns.PREFIX or type(text) ~= "string" or type(sender) ~= "string" or sender == "" then return end
@@ -321,16 +422,25 @@ local function OnAddonMessage(prefix, text, dist, sender, target, zoneChannelID,
 	sender = ns.Key(sender)
 	if sender == ns.me then
 		stats.echo = stats.echo + 1
+		if onChannel then Echoed() end
 		return
 	end
-	local lane = dist == "WHISPER" and "w" or "c"
+	local private = dist == "WHISPER" or addressed
+	local lane = private and "w" or "c"
 	local now = GetTime()
-	if ns.Safety and ns.Safety.IsBlocked(sender) and dist == "WHISPER" then return end
+	if ns.Safety and ns.Safety.IsBlocked(sender) and private then return end
 	if not Comm.Admit(sender, lane, now) then return end
 	stats.recv = stats.recv + 1
+	if addressed then stats.addrGot = stats.addrGot + 1 end
+	-- (proof that the channel reaches further than whispers: a profile or digest on it from a
+	-- player our whispers can't reach)
+	if onChannel and not addressed and not Comm.CanWhisper(sender) then
+		local k = text:sub(1, 2)
+		if k == "R1" or k == "H2" then stats.farHeard = stats.farHeard + 1 end
+	end
 	heard[sender] = now
 	if ns.Identity then ns.Identity.Heard(sender) end
-	local wire = dist == "WHISPER" and "WHISPER" or "CHANNEL"
+	local wire = private and "WHISPER" or "CHANNEL"
 	if text:match("^C%w+:%d+:%d+:") then
 		local full = Codec.Feed(asm[wire], sender, text, now)
 		if not full then return end
@@ -351,7 +461,7 @@ function Comm.OnChannelText(text, sender, _, channelName, _, _, _, localID, base
 		or type(channelName) == "string" and channelName:gsub("^%d+%.%s*", "") or ""
 	if name:lower() ~= joinedName:lower() then return end
 	stats.heardText = stats.heardText + 1
-	OnAddonMessage(ns.PREFIX, text, "CHANNEL", sender, nil, 0, nil, name, true)
+	OnAddonMessage(ns.PREFIX, text, "CHANNEL", sender, nil, 0, nil, name, true, true)
 end
 
 ---------------------------------------------------------------------------
@@ -655,6 +765,7 @@ ns.On("LOGIN", function()
 	if C_ChatInfo and C_ChatInfo.RegisterAddonMessagePrefix then
 		C_ChatInfo.RegisterAddonMessagePrefix(ns.PREFIX)
 		C_ChatInfo.RegisterAddonMessagePrefix(Comm.WIDE)
+		C_ChatInfo.RegisterAddonMessagePrefix(Comm.ADDR)
 	end
 	ns.RegisterEvent("CHAT_MSG_ADDON", function(...) OnAddonMessage(...) end)
 	ns.RegisterEvent("CHAT_MSG_CHANNEL", Comm.OnChannelText)
@@ -701,3 +812,7 @@ ns.On("LOGIN", function()
 		if not ns.TestNet() and (channelIndex == 0 or (GetChannelName(joinedName or "") or 0) == 0) then Comm.JoinChannel() end
 	end)
 end)
+
+-- 0.1.6: the channel is tested as soon as we are in it; its test message needs no handling.
+Comm.Handle("E0", function() end)
+ns.On("CHANNEL_READY", function() Comm.ChannelWorks() end)
